@@ -66,15 +66,21 @@ await scheduler.run();
   path), `DuplicateTaskException`, `InitTaskFailedException` (wraps the
   original error + stack trace), `DependencyFailedException`. Graph errors
   throw before anything runs.
-- Default: the first task failure aborts the run. With
+- Default: the first task failure aborts the run immediately; already-started
+  tasks are not cancelled. With
   `run(continueOnError: true)`, every task whose dependencies succeeded
   still runs; dependents of failed tasks are skipped and reported via
   `InitObserver.onTaskSkipped`.
 - Per-task `timeout` / `retries` on `add()`. Timeout does NOT cancel the
   underlying Future: the attempt is reported as failed, and a retry may
   start while the old attempt still runs in the background.
-- Observe with `InitObserver` (all hooks default to no-ops) or the
-  print-based `PrintInitObserver`.
+- `run()` prints lifecycle logs by default. Pass `enableLogging: false` to
+  silence built-in logs. Release builds (`dart.vm.product`) always suppress
+  built-in logs, even with an explicit `PrintInitObserver`.
+  A custom `InitObserver` replaces the built-in logger
+  and still receives events when logging is disabled.
+  Observer callback exceptions are ignored;
+  handle reporting errors within the observer if needed.
 
 ## Operating rules
 

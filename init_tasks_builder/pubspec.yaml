@@ -1,7 +1,8 @@
 name: init_tasks_builder
 description: Code generator for init_tasks. Turns @Init annotations into a wired buildInitScheduler() function.
 version: 0.1.0
-publish_to: none
+repository: https://github.com/lwj1994/init_tasks/tree/main/init_tasks_builder
+issue_tracker: https://github.com/lwj1994/init_tasks/issues
 
 environment:
   sdk: ^3.0.0
@@ -9,8 +10,7 @@ environment:
 dependencies:
   analyzer: ^7.0.0
   build: ^2.4.0
-  init_tasks:
-    path: ../init_tasks
+  init_tasks: ^0.1.0
   source_gen: ^2.0.0
 
 dev_dependencies:

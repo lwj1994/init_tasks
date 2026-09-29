@@ -41,7 +41,7 @@ error list.
 **Skill Add** — install with the [skills CLI](https://github.com/vercel-labs/agent-skills):
 
 ```sh
-npx skills add lwj1994/dag_task_scheduler --skill init-tasks
+npx skills add lwj1994/init_tasks --skill init-tasks
 ```
 
 Useful flags: `-g` installs globally (`~/.<agent>/skills/`) instead of

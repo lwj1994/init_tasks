@@ -18,6 +18,7 @@ jobs:
 
       - name: Install dependencies
         run: |
+          printf 'dependency_overrides:\n  init_tasks:\n    path: ../init_tasks\n' > init_tasks_builder/pubspec_overrides.yaml
           cd init_tasks && dart pub get
           cd ../init_tasks_builder && dart pub get
           cd ../example && dart pub get
@@ -32,7 +33,9 @@ jobs:
           cd ../example && dart analyze
 
       - name: Run tests
-        run: cd init_tasks && dart test
+        run: |
+          cd init_tasks && dart test
+          cd ../init_tasks_builder && dart test
 
       - name: Verify codegen output is up to date
         run: |

@@ -9,16 +9,16 @@ part of 'app_init.dart';
 /// Builds a [InitScheduler] with every `@Init` in this library,
 /// wired by their declared dependencies.
 InitScheduler buildInitScheduler() {
-  final initConfig = InitConfig();
-  final initDatabase = InitDatabase();
-  final initCache = InitCache();
-  final initUserSession = InitUserSession();
-  final precacheImages = PrecacheImages();
+  final task0 = InitConfig();
+  final task1 = InitDatabase();
+  final task2 = InitCache();
+  final task3 = InitUserSession();
+  final task4 = PrecacheImages();
   final scheduler = InitScheduler();
-  scheduler.add(initConfig);
-  scheduler.add(initDatabase, dependsOn: [initConfig]);
-  scheduler.add(initCache, dependsOn: [initConfig]);
-  scheduler.add(initUserSession, dependsOn: [initDatabase, initCache]);
-  scheduler.add(precacheImages, dependsOn: [initUserSession]);
+  scheduler.add(task0);
+  scheduler.add(task1, dependsOn: [task0]);
+  scheduler.add(task2, dependsOn: [task0]);
+  scheduler.add(task3, dependsOn: [task1, task2]);
+  scheduler.add(task4, dependsOn: [task3]);
   return scheduler;
 }

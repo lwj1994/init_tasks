@@ -1,6 +1,6 @@
 # init_tasks_builder
 
-Code generator for [`init_tasks`](../init_tasks).
+Code generator for [`init_tasks`](https://pub.dev/packages/init_tasks).
 
 Scans a library for `@Init`-annotated classes and generates a
 `buildInitScheduler()` function that instantiates every task and wires
@@ -13,8 +13,7 @@ Add to your package's `dev_dependencies`:
 ```yaml
 dev_dependencies:
   build_runner: ^2.4.0
-  init_tasks_builder:
-    path: ../init_tasks_builder # or hosted version
+  init_tasks_builder: ^0.1.0
 ```
 
 The builder applies automatically (`auto_apply: dependents`). Then:
@@ -51,11 +50,11 @@ class InitDatabase extends InitTask {
 part of 'app_init.dart';
 
 InitScheduler buildInitScheduler() {
-  final initConfig = InitConfig();
-  final initDatabase = InitDatabase();
+  final task0 = InitConfig();
+  final task1 = InitDatabase();
   final scheduler = InitScheduler();
-  scheduler.add(initConfig);
-  scheduler.add(initDatabase, dependsOn: [initConfig]);
+  scheduler.add(task0);
+  scheduler.add(task1, dependsOn: [task0]);
   return scheduler;
 }
 ```

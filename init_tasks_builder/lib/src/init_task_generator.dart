@@ -22,22 +22,24 @@ class InitTaskGenerator extends Generator {
     ];
     if (classes.isEmpty) return null;
 
-    final infos = [
-      for (final cls in classes)
-        _readTask(cls, {for (final c in classes) c.name}),
-    ];
+    final taskClasses = classes.toSet();
+    final infos = [for (final cls in classes) _readTask(cls, taskClasses)];
     final ordered = _topoSort(infos);
 
     final varNames = <String, String>{};
-    for (final info in ordered) {
-      var base = _lowerFirst(info.name);
+    final usedNames = {for (final cls in classes) cls.name};
+    String allocateName(String base) {
       var candidate = base;
-      var i = 2;
-      while (varNames.values.contains(candidate)) {
-        candidate = '$base$i';
-        i++;
+      var suffix = 2;
+      while (!usedNames.add(candidate)) {
+        candidate = '$base${suffix++}';
       }
-      varNames[info.name] = candidate;
+      return candidate;
+    }
+
+    final schedulerName = allocateName('scheduler');
+    for (final info in ordered) {
+      varNames[info.name] = allocateName('task${varNames.length}');
     }
 
     final buf = StringBuffer()
@@ -48,25 +50,25 @@ class InitTaskGenerator extends Generator {
     for (final info in ordered) {
       buf.writeln('  final ${varNames[info.name]} = ${info.name}();');
     }
-    buf.writeln('  final scheduler = InitScheduler();');
+    buf.writeln('  final $schedulerName = InitScheduler();');
     for (final info in ordered) {
       final varName = varNames[info.name]!;
       if (info.dependsOn.isEmpty) {
-        buf.writeln('  scheduler.add($varName);');
+        buf.writeln('  $schedulerName.add($varName);');
       } else {
         final deps = [for (final d in info.dependsOn) varNames[d]!];
         buf.writeln(
-          '  scheduler.add($varName, dependsOn: [${deps.join(', ')}]);',
+          '  $schedulerName.add($varName, dependsOn: [${deps.join(', ')}]);',
         );
       }
     }
     buf
-      ..writeln('  return scheduler;')
+      ..writeln('  return $schedulerName;')
       ..writeln('}');
     return buf.toString();
   }
 
-  _TaskInfo _readTask(ClassElement cls, Set<String> taskNames) {
+  _TaskInfo _readTask(ClassElement cls, Set<ClassElement> taskClasses) {
     if (cls.isAbstract) {
       throw InvalidGenerationSourceError(
         '@Init class `${cls.name}` must not be abstract.',
@@ -89,17 +91,16 @@ class InitTaskGenerator extends Generator {
     final dependsOn = <String>[];
     for (final item in reader.read('dependsOn').listValue) {
       final type = item.toTypeValue();
-      final depName = type is InterfaceType && type.typeArguments.isEmpty
-          ? type.getDisplayString()
-          : null;
-      if (depName == null) {
+      if (type is! InterfaceType || type.typeArguments.isNotEmpty) {
         throw InvalidGenerationSourceError(
           '@Init(dependsOn:) on `${cls.name}` must list task types, '
           'e.g. `dependsOn: [InitConfig]`.',
           element: cls,
         );
       }
-      if (!taskNames.contains(depName)) {
+      final depClass = type.element;
+      final depName = depClass.name;
+      if (!taskClasses.contains(depClass)) {
         throw InvalidGenerationSourceError(
           '@Init on `${cls.name}` depends on `$depName`, which is not a '
           '@Init class in this library. Keep all tasks of one scheduler in '
@@ -130,9 +131,6 @@ class InitTaskGenerator extends Generator {
     }
     return ordered;
   }
-
-  String _lowerFirst(String s) =>
-      s.isEmpty ? s : s[0].toLowerCase() + s.substring(1);
 }
 
 class _TaskInfo {

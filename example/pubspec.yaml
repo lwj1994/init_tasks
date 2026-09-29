@@ -7,6 +7,9 @@ environment:
   sdk: ^3.0.0
 
 dependencies:
+  init_tasks: ^0.1.0
+
+dependency_overrides:
   init_tasks:
     path: ../init_tasks
 

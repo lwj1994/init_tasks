@@ -28,6 +28,7 @@ migrate_working_dir/
 .flutter-plugins
 .flutter-plugins-dependencies
 .packages
+pubspec_overrides.yaml
 .pub-cache/
 .pub/
 /build/

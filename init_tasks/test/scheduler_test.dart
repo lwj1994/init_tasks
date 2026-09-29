@@ -152,6 +152,101 @@ void main() {
     expect(skipped, ['after']);
   });
 
+  for (final lateFailure in [false, true]) {
+    test('fails before a pending sibling completes (lateFailure: $lateFailure)',
+        () async {
+      final log = <String>[];
+      final release = Completer<void>();
+      final siblingFinished = Completer<void>();
+      final boom =
+          _Probe('boom', log, behavior: () => throw StateError('first'));
+      final scheduler = InitScheduler()
+        ..add(boom)
+        ..add(_Probe('pending', log, behavior: () async {
+          await release.future;
+          if (lateFailure) throw StateError('late');
+        }))
+        ..add(_Probe('after', log), dependsOn: [boom]);
+      final observer = _RecordingObserver(
+        onDone: (task, _) {
+          if (task.id == 'pending') siblingFinished.complete();
+        },
+        onError: (task, _, __) {
+          if (task.id == 'pending') siblingFinished.complete();
+        },
+      );
+
+      try {
+        await expectLater(
+          scheduler.run(observer: observer).timeout(const Duration(seconds: 2)),
+          throwsA(isA<InitTaskFailedException>()
+              .having((e) => e.taskId, 'taskId', 'boom')),
+        );
+        expect(siblingFinished.isCompleted, isFalse);
+        expect(log, isNot(contains('start:after')));
+      } finally {
+        release.complete();
+        await siblingFinished.future;
+      }
+    });
+  }
+
+  for (final continueOnError in [false, true]) {
+    test('observer errors do not rerun success ($continueOnError)', () async {
+      final log = <String>[];
+      final task = _Probe('success', log);
+      final observer = _ThrowingObserver();
+      await (InitScheduler()
+            ..add(task, retries: 2)
+            ..add(_Probe('child', log), dependsOn: [task]))
+          .run(observer: observer, continueOnError: continueOnError);
+
+      expect(log, ['start:success', 'end:success', 'start:child', 'end:child']);
+      expect(observer.events,
+          ['start:success', 'done:success', 'start:child', 'done:child']);
+    });
+  }
+
+  test('observer errors do not interrupt retries or mask the task error',
+      () async {
+    final log = <String>[];
+    final original = StateError('task failed');
+    final observer = _ThrowingObserver();
+    final scheduler = InitScheduler()
+      ..add(_Probe('boom', log, behavior: () => throw original), retries: 1);
+
+    await expectLater(
+      scheduler.run(observer: observer),
+      throwsA(isA<InitTaskFailedException>()
+          .having((e) => e.error, 'error', same(original))),
+    );
+    expect(log, ['start:boom', 'start:boom']);
+    expect(observer.events, ['start:boom', 'retry:boom', 'error:boom']);
+  });
+
+  test('observer errors do not interrupt skipping or independent branches',
+      () async {
+    final log = <String>[];
+    final observer = _ThrowingObserver();
+    final boom =
+        _Probe('boom', log, behavior: () => throw StateError('failed'));
+    final skipped = _Probe('skipped', log);
+    final independent = _Probe('independent', log);
+    final scheduler = InitScheduler()
+      ..add(boom)
+      ..add(independent)
+      ..add(skipped, dependsOn: [boom])
+      ..add(_Probe('descendant', log), dependsOn: [skipped])
+      ..add(_Probe('child', log), dependsOn: [independent]);
+
+    await scheduler.run(observer: observer, continueOnError: true);
+    expect(log, contains('end:child'));
+    expect(log, isNot(contains('start:skipped')));
+    expect(log, isNot(contains('start:descendant')));
+    expect(observer.events,
+        containsAll(['error:boom', 'skip:skipped', 'skip:descendant']));
+  });
+
   test('timeout fails the task', () async {
     final log = <String>[];
     final scheduler = InitScheduler()
@@ -224,6 +319,54 @@ void main() {
 
     expect(events, ['start:a', 'done:a', 'start:b', 'done:b']);
   });
+
+  test('lifecycle logging is enabled by default', () async {
+    final messages = <String>[];
+    await runZoned(
+      () => (InitScheduler()..add(_Probe('a', []))).run(),
+      zoneSpecification: ZoneSpecification(
+        print: (_, __, ___, message) => messages.add(message),
+      ),
+    );
+    expect(messages, hasLength(2));
+    expect(messages.first, '[init] start a');
+    expect(messages.last, startsWith('[init] done  a in '));
+  });
+
+  test('enableLogging false silences built-in logs without skipping tasks',
+      () async {
+    final messages = <String>[];
+    final log = <String>[];
+    await runZoned(
+      () => (InitScheduler()..add(_Probe('a', log))).run(enableLogging: false),
+      zoneSpecification: ZoneSpecification(
+        print: (_, __, ___, message) => messages.add(message),
+      ),
+    );
+    expect(messages, isEmpty);
+    expect(log, ['start:a', 'end:a']);
+  });
+
+  for (final enableLogging in [false, true]) {
+    test('custom observer replaces built-in logs ($enableLogging)', () async {
+      final messages = <String>[];
+      final events = <String>[];
+      await runZoned(
+        () => (InitScheduler()..add(_Probe('a', []))).run(
+          enableLogging: enableLogging,
+          observer: _RecordingObserver(
+            onStart: (task) => events.add('start:${task.id}'),
+            onDone: (task, _) => events.add('done:${task.id}'),
+          ),
+        ),
+        zoneSpecification: ZoneSpecification(
+          print: (_, __, ___, message) => messages.add(message),
+        ),
+      );
+      expect(messages, isEmpty);
+      expect(events, ['start:a', 'done:a']);
+    });
+  }
 }
 
 class _SyncTask extends InitTask {
@@ -238,8 +381,9 @@ class _RecordingObserver extends InitObserver {
   final void Function(InitTask)? onStart;
   final void Function(InitTask, Duration)? onDone;
   final void Function(String)? onSkipped;
+  final void Function(InitTask, Object, StackTrace)? onError;
 
-  _RecordingObserver({this.onStart, this.onDone, this.onSkipped});
+  _RecordingObserver({this.onStart, this.onDone, this.onSkipped, this.onError});
 
   @override
   void onTaskStart(InitTask task) => onStart?.call(task);
@@ -250,4 +394,34 @@ class _RecordingObserver extends InitObserver {
   @override
   void onTaskSkipped(InitTask task, DependencyFailedException reason) =>
       onSkipped?.call(task.id);
+
+  @override
+  void onTaskError(InitTask task, Object error, StackTrace stackTrace) =>
+      onError?.call(task, error, stackTrace);
+}
+
+class _ThrowingObserver extends InitObserver {
+  final events = <String>[];
+
+  void _record(String event, InitTask task) {
+    events.add('$event:${task.id}');
+    throw StateError('observer failed');
+  }
+
+  @override
+  void onTaskStart(InitTask task) => _record('start', task);
+
+  @override
+  void onTaskDone(InitTask task, Duration elapsed) => _record('done', task);
+
+  @override
+  void onTaskRetry(InitTask task, int attempt) => _record('retry', task);
+
+  @override
+  void onTaskError(InitTask task, Object error, StackTrace stackTrace) =>
+      _record('error', task);
+
+  @override
+  void onTaskSkipped(InitTask task, DependencyFailedException reason) =>
+      _record('skip', task);
 }
