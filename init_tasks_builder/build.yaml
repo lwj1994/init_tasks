@@ -1,0 +1,14 @@
+targets:
+  $default:
+    builders:
+      init_tasks_builder|initTask:
+        enabled: true
+
+builders:
+  initTask:
+    import: "package:init_tasks_builder/builder.dart"
+    builder_factories: ["initTaskBuilder"]
+    build_extensions: {".dart": [".init_task.g.part"]}
+    auto_apply: dependents
+    build_to: cache
+    applies_builders: ["source_gen:combining_builder"]

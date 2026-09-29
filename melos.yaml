@@ -1,17 +1,14 @@
-name: dag_task_scheduler
+name: init_tasks
 
 packages:
+  - init_tasks
+  - init_tasks_builder
   - example
-  - annotation
-  - builder
-ignore:
-
 
 scripts:
   analyze:
     exec: dart analyze .
   format:
     exec: dart format .
-
-
-
+  test:
+    exec: dart test .

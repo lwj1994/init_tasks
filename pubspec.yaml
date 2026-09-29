@@ -1,4 +1,4 @@
-name: dag_task_scheduler
+name: init_tasks
 
 environment:
   sdk: '>=3.0.0'
